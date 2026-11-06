@@ -9,14 +9,18 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
-const QS = require('./server/questions');
-const G = require('./public/shared.js');
+// Файлдар папкасыз (бәрі бір жерде) жүктелсе де жұмыс істейді
+const pick = (...c) => c.map(f => path.join(__dirname, f)).find(f => fs.existsSync(f)) || path.join(__dirname, c[0]);
+const QS = require(pick('server/questions.js', 'questions.js'));
+const G = require(pick('public/shared.js', 'shared.js'));
 
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ('m' + crypto.randomInt(100000, 999999));
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'session.json');
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const FLAT = !fs.existsSync(path.join(__dirname, 'public', 'index.html'));
+const PUBLIC_DIR = FLAT ? __dirname : path.join(__dirname, 'public');
+const FLAT_OK = new Set(['/index.html', '/teacher.html', '/shared.js']);
 const MAX_STUDENTS = 300;
 const QBYID = new Map(QS.map(q => [q.id, q]));
 
@@ -581,6 +585,7 @@ function serveStatic(req, res, url) {
   let p = decodeURIComponent(url.pathname);
   if (p === '/') p = '/index.html';
   if (p === '/teacher' || p === '/mugalim') p = '/teacher.html';
+  if (FLAT && !FLAT_OK.has(p)) { res.writeHead(404); return res.end(); }
   const file = path.normalize(path.join(PUBLIC_DIR, p));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
