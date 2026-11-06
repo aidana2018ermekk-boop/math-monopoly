@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мұғалім панелі — Математикалық монополия</title>
+<style>
+:root{--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--accent:#7c3aed;--accent2:#db2777;--ok:#16a34a;--bad:#dc2626;--bg:#f4f2fb}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+button{font-family:inherit;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.hidden{display:none!important}
+header{background:linear-gradient(135deg,#0f0c29,#302b63);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:18px;display:flex;align-items:center;gap:10px}
+.brand i{font-style:normal;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#db2777);font-family:"Cambria Math",serif;font-size:21px}
+.status{margin-left:auto;background:#ffffff22;border-radius:999px;padding:6px 14px;font-weight:700;font-size:14px}
+.status b{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:#22c55e}
+.status b.off{background:#ef4444}
+main{max-width:1500px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:16px}
+.panel{background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 4px 18px #1e1b4b14}
+.panel h2{margin:0 0 12px;font-size:16px;text-transform:uppercase;letter-spacing:.5px;color:#4c1d95}
+.login{max-width:420px;margin:12vh auto}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select{font:inherit;padding:9px 11px;border-radius:10px;border:1.5px solid #d1d5db;background:#fff}
+.btn{font-size:15px;font-weight:800;padding:10px 16px;border-radius:11px;border:1.5px solid #d1d5db;background:#fff;color:#374151}
+.btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:0;color:#fff}
+.btn.green{background:#16a34a;border:0;color:#fff}
+.btn.red{background:#dc2626;border:0;color:#fff}
+.err{color:var(--bad);font-weight:700;min-height:1.2em;margin:8px 0}
+.top{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:16px}
+@media(max-width:900px){.top{grid-template-columns:1fr}}
+.codebox{display:flex;gap:16px;align-items:center}
+.code{font-size:56px;font-weight:900;letter-spacing:8px;color:#312e81;line-height:1}
+.joinurl{font-size:15px;font-weight:700;color:#7c3aed;word-break:break-all;margin-top:8px}
+#qr{flex:none;width:130px;height:130px;background:#fff;padding:6px;border-radius:10px;border:1px solid var(--line)}
+#qr img,#qr canvas{width:100%!important;height:100%!important}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 4px 18px #1e1b4b14}
+.tile .v{font-size:32px;font-weight:900;color:#312e81}
+.tile .l{font-size:13px;color:var(--muted);font-weight:700}
+.tablewrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:12px}
+table.live{width:100%;border-collapse:collapse;font-size:14.5px}
+.live th{position:sticky;top:0;background:#1e1b4b;color:#fff;text-align:left;padding:9px 10px;font-size:12.5px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;white-space:nowrap;user-select:none}
+.live th.num,.live td.num{text-align:right}
+.live td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.live tbody tr{cursor:pointer}
+.live tbody tr:hover td{background:#faf5ff}
+.live tr.flash td{animation:flash 1.2s ease}
+@keyframes flash{0%{background:#fef9c3}}
+.rank1{font-size:18px}
+.acc{display:flex;align-items:center;gap:6px}
+.acc span{display:inline-block;width:70px;height:8px;border-radius:999px;background:#fee2e2;overflow:hidden}
+.acc span i{display:block;height:100%;background:#16a34a}
+.st{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px}
+.st-lobby{background:#f3f4f6;color:#4b5563}.st-waiting{background:#e0e7ff;color:#3730a3}.st-turn{background:#fef3c7;color:#92400e}
+.st-answering{background:#fde68a;color:#78350f}.st-over{background:#dcfce7;color:#166534}.st-bankrupt{background:#fee2e2;color:#991b1b}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;margin-right:6px}
+.dot.off{background:#d1d5db}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.catrow{display:grid;grid-template-columns:200px 1fr 90px;gap:10px;align-items:center;margin-bottom:8px;font-size:14px}
+.catbar{height:14px;border-radius:999px;background:#fee2e2;overflow:hidden}
+.catbar i{display:block;height:100%}
+.hard{font-size:14px;padding:8px 0;border-bottom:1px solid var(--line);display:flex;gap:10px}
+.hard b{color:var(--bad);white-space:nowrap}
+.mathf{font-family:"Cambria Math",Cambria,"Times New Roman",serif}
+.overlay{position:fixed;inset:0;background:#0b0820b0;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{background:#fff;border-radius:18px;width:min(820px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:20px}
+.ans{border:1px solid var(--line);border-left:5px solid var(--ok);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14.5px}
+.ans.bad{border-left-color:var(--bad);background:#fffafa}
+.ans .q{font-size:16px;margin:4px 0}
+.ans small{color:var(--muted)}
+.mx{display:inline-grid;vertical-align:middle;gap:1px 8px;padding:1px 7px;margin:0 3px;border-left:2px solid currentColor;border-right:2px solid currentColor;border-radius:7px;text-align:center}
+.search{font:inherit;padding:8px 11px;border-radius:10px;border:1.5px solid #d1d5db;min-width:220px}
+.hint{color:var(--muted);font-size:13.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><i>∑</i> Мұғалім панелі · Математикалық монополия</div>
+  <div class="status" id="status"><b class="off"></b>Қосылмаған</div>
+</header>
+
+<!-- Кіру -->
+<div id="scLogin" class="login panel">
+  <h2>Мұғалім ретінде кіру</h2>
+  <p class="hint">Құпия сөз сервер іске қосылғанда терезеде көрсетіледі (немесе ADMIN_PASSWORD айнымалысында).</p>
+  <div class="field"><label>Құпия сөз</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <div class="err" id="lErr"></div>
+  <button class="btn primary" id="lBtn" style="width:100%">Кіру</button>
+</div>
+
+<main id="scMain" class="hidden">
+  <div class="top">
+    <div class="panel">
+      <h2>Ойынға қосылу</h2>
+      <div id="noSession" class="hidden"><p class="hint">Әзірге сессия жоқ. Оң жақтағы баптауларды таңдап, «Жаңа сессия ашу» батырмасын басыңыз.</p></div>
+      <div id="hasSession" class="codebox">
+        <div id="qr"></div>
+        <div><div class="hint">Ойын коды</div><div class="code" id="code">——</div><div class="joinurl" id="joinUrl"></div>
+        <div class="hint" style="margin-top:6px">Студенттер осы сілтемені телефонда немесе ноутбукта ашып, кодты және аты-жөнін жазады.</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Баптаулар және басқару</h2>
+      <div class="settings">
+        <div class="field"><label>Үстелдегі ойыншы</label><select id="sTable"><option value="1">1 (жеке)</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></div>
+        <div class="field"><label>Режим</label><select id="sMode"><option value="rounds">Раундтар саны</option><option value="target">Мақсатты сома</option><option value="last">Соңғы қалған</option></select></div>
+        <div class="field"><label>Раундтар</label><select id="sRounds"><option>3</option><option>5</option><option>8</option><option selected>10</option><option>15</option><option>20</option><option>30</option></select></div>
+        <div class="field"><label>Мақсатты сома</label><select id="sTarget"><option>2000</option><option selected>3000</option><option>5000</option></select></div>
+        <div class="field"><label>Қиындық</label><select id="sDiff"><option value="mix">Аралас</option><option value="1">Жеңіл</option><option value="2">Орташа</option><option value="3">Қиын</option></select></div>
+        <div class="field"><label>Сұраққа уақыт</label><select id="sTimer"><option value="20">20 с</option><option value="30" selected>30 с</option><option value="45">45 с</option><option value="60">60 с</option></select></div>
+        <div class="field"><label>Сүйек</label><select id="sDice"><option value="1">1</option><option value="2">2</option></select></div>
+      </div>
+      <div class="actions">
+        <button class="btn green" id="bStart">▶ Ойынды бастау</button>
+        <button class="btn red" id="bEnd">■ Ойынды аяқтау</button>
+        <button class="btn" id="bNew">＋ Жаңа сессия ашу</button>
+        <button class="btn" id="bCsv">⬇ Нәтижелерді жүктеу (CSV)</button>
+        <span class="hint" id="actHint"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="v" id="tStudents">0</div><div class="l">Студент (желіде: <span id="tOnline">0</span>)</div></div>
+    <div class="tile"><div class="v" id="tTables">0</div><div class="l">Үстел (аяқталған: <span id="tTablesOver">0</span>)</div></div>
+    <div class="tile"><div class="v" id="tAnswers">0</div><div class="l">Барлық жауап</div></div>
+    <div class="tile"><div class="v" id="tOk">0</div><div class="l">Дұрыс шығарылған есеп</div></div>
+    <div class="tile"><div class="v" id="tBad">0</div><div class="l">Қате жауап</div></div>
+    <div class="tile"><div class="v" id="tAcc">—</div><div class="l">Сыныптың орташа дәлдігі</div></div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <h2 style="margin:0">Рейтинг — тікелей кесте</h2>
+      <input class="search" id="search" placeholder="🔍 Студентті іздеу...">
+    </div>
+    <div class="tablewrap"><table class="live">
+      <thead><tr>
+        <th data-k="rank" class="num">Орын</th><th data-k="name">Аты-жөні</th><th data-k="table" class="num">Үстел</th>
+        <th data-k="coins" class="num">Тиын</th><th data-k="ok" class="num">Шығарған есеп</th><th data-k="bad" class="num">Қате</th>
+        <th data-k="acc">Дәлдік</th><th data-k="props" class="num">Мүлік</th><th data-k="pos">Тақтадағы орны</th><th data-k="state">Күйі</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="10" class="hint" style="padding:18px">Студенттер әлі қосылған жоқ.</td></tr></tbody>
+    </table></div>
+    <p class="hint" style="margin:8px 0 0">Жолды басып, студенттің барлық жауабын және жіберген қателерін көре аласыз.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="panel"><h2>Санаттар бойынша дәлдік</h2><div id="cats"></div></div>
+    <div class="panel"><h2>Ең көп қате жіберілген есептер</h2><div id="hard"><p class="hint">Әзірге қате жоқ.</p></div></div>
+  </div>
+</main>
+
+<div id="overlay" class="overlay hidden"><div class="modal" id="modal"></div></div>
+
+<script src="shared.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+'use strict';
+const G = window.SHARED;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = s => esc(s).replace(/\{\{m:([^}]+)\}\}/g, (_, b) => { const rows = b.split(';').map(r => r.split(',')); return `<span class="mx" style="grid-template-columns:repeat(${rows[0].length},auto)">${rows.flat().map(x => `<span>${x.trim()}</span>`).join('')}</span>`; });
+const KEY = 'mm_admin_key';
+let key = null; try { key = sessionStorage.getItem(KEY); } catch (e) {}
+let es = null, D = null, sortK = 'rank', sortDir = 1, lastQr = null, prevOk = {};
+const STATE = {lobby: 'Күтуде', waiting: 'Кезек күтуде', turn: 'Кезегі', answering: 'Жауап беруде', over: 'Аяқтады', bankrupt: 'Банкрот'};
+
+async function admin(path, body) {
+  const r = await fetch('/api/admin/' + path, {method: body === undefined ? 'GET' : 'POST', headers: {'Content-Type': 'application/json', 'x-admin-key': key}, body: body === undefined ? undefined : JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Қате');
+  return j;
+}
+function settings() {
+  return {tableSize: +$('#sTable').value, mode: $('#sMode').value, rounds: +$('#sRounds').value, target: +$('#sTarget').value,
+    diff: $('#sDiff').value, timer: +$('#sTimer').value, dice: +$('#sDice').value};
+}
+function applySettings(s) {
+  $('#sTable').value = s.tableSize; $('#sMode').value = s.mode; $('#sRounds').value = s.rounds; $('#sTarget').value = s.target;
+  $('#sDiff').value = s.diff; $('#sTimer').value = s.timer; $('#sDice').value = s.dice;
+}
+
+/* ---- login ---- */
+async function login(pw) {
+  $('#lErr').textContent = '';
+  try {
+    const r = await fetch('/api/admin/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})});
+    if (!r.ok) { $('#lErr').textContent = 'Құпия сөз қате.'; try { sessionStorage.removeItem(KEY); } catch (e) {} return; }
+    key = pw; try { sessionStorage.setItem(KEY, pw); } catch (e) {}
+    $('#scLogin').classList.add('hidden'); $('#scMain').classList.remove('hidden'); connect();
+  } catch (e) { $('#lErr').textContent = 'Серверге қосылу мүмкін болмады.'; }
+}
+$('#lBtn').onclick = () => login($('#pw').value);
+$('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login($('#pw').value); });
+
+function connect() {
+  if (es) es.close();
+  es = new EventSource('/api/admin/stream?key=' + encodeURIComponent(key));
+  es.addEventListener('dash', e => { D = JSON.parse(e.data); render(); });
+  es.onopen = () => { $('#status').innerHTML = '<b></b>Тікелей эфир'; };
+  es.onerror = () => { $('#status').innerHTML = '<b class="off"></b>Байланыс үзілді — қайта қосылуда'; };
+}
+
+/* ---- render ---- */
+function render() {
+  const has = !!D;
+  $('#noSession').classList.toggle('hidden', has); $('#hasSession').classList.toggle('hidden', !has);
+  const st = D ? D.status : null;
+  $('#bStart').disabled = st !== 'lobby'; $('#bEnd').disabled = st !== 'running'; $('#bCsv').disabled = !has;
+  document.querySelectorAll('.settings select').forEach(s => s.disabled = has && st !== 'lobby');
+  $('#actHint').textContent = !has ? '' : st === 'lobby' ? 'Студенттер қосылуда. Дайын болғанда «Ойынды бастау» батырмасын басыңыз.'
+    : st === 'running' ? 'Ойын жүріп жатыр. Кеш келген студенттер бос үстелге автоматты қосылады.' : 'Ойын аяқталды. Нәтижелерді жүктеп алуға болады.';
+  if (!has) { $('#rows').innerHTML = '<tr><td colspan="10" class="hint" style="padding:18px">Сессия ашылмаған.</td></tr>'; return; }
+  if (st === 'lobby' && document.activeElement && document.activeElement.tagName !== 'SELECT') applySettings(D.settings);
+  if (st !== 'lobby') applySettings(D.settings);
+  $('#code').textContent = D.code;
+  const url = `${location.origin}/?code=${D.code}`;
+  $('#joinUrl').textContent = url;
+  if (lastQr !== url) { lastQr = url; $('#qr').innerHTML = ''; if (window.QRCode) new QRCode($('#qr'), {text: url, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M}); else $('#qr').classList.add('hidden'); }
+  const T = D.totals, ans = T.ok + T.bad;
+  $('#tStudents').textContent = T.students; $('#tOnline').textContent = T.online; $('#tTables').textContent = T.tables; $('#tTablesOver').textContent = T.tablesOver;
+  $('#tAnswers').textContent = ans; $('#tOk').textContent = T.ok; $('#tBad').textContent = T.bad; $('#tAcc').textContent = ans ? Math.round(100 * T.ok / ans) + '%' : '—';
+  renderRows(); renderCats(); renderHard();
+}
+function renderRows() {
+  const q = $('#search').value.trim().toLowerCase();
+  let list = D.students.filter(s => !q || s.name.toLowerCase().includes(q));
+  const val = s => sortK === 'acc' ? (s.ok + s.bad ? s.ok / (s.ok + s.bad) : -1) : sortK === 'table' ? (s.table ?? 1e9) : sortK === 'pos' ? (s.pos ?? -1) : s[sortK];
+  list = list.slice().sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir; });
+  if (!list.length) { $('#rows').innerHTML = `<tr><td colspan="10" class="hint" style="padding:18px">${D.students.length ? 'Ешкім табылмады.' : 'Студенттер әлі қосылған жоқ. Кодты тақтаға көрсетіңіз.'}</td></tr>`; return; }
+  const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
+  $('#rows').innerHTML = list.map(s => {
+    const n = s.ok + s.bad, acc = n ? Math.round(100 * s.ok / n) : null;
+    const flash = prevOk[s.id] !== undefined && prevOk[s.id] !== s.ok + s.bad ? 'flash' : '';
+    return `<tr data-id="${s.id}" class="${flash}"><td class="num rank1">${medal(s.rank)}</td><td><span class="dot ${s.online ? '' : 'off'}"></span><b>${esc(s.name)}</b></td>
+      <td class="num">${s.table ?? '—'}</td><td class="num"><b>${s.coins}</b></td><td class="num" style="color:#16a34a;font-weight:800">${s.ok}</td>
+      <td class="num" style="color:#dc2626;font-weight:800">${s.bad}</td>
+      <td><div class="acc"><span><i style="width:${acc ?? 0}%"></i></span>${acc === null ? '—' : acc + '%'}</div></td>
+      <td class="num">${s.props}${s.propValue ? ` <small class="hint">(${s.propValue})</small>` : ''}</td>
+      <td>${s.pos === null ? '—' : `№${s.pos} ${esc(s.cell)}`}</td><td><span class="st st-${s.state}">${STATE[s.state] || s.state}</span></td></tr>`;
+  }).join('');
+  prevOk = Object.fromEntries(D.students.map(s => [s.id, s.ok + s.bad]));
+  $('#rows').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openStudent(tr.dataset.id));
+}
+function renderCats() {
+  $('#cats').innerHTML = Object.entries(G.CATS).map(([k, c]) => {
+    const x = D.catStats[k], n = x.ok + x.bad, p = n ? Math.round(100 * x.ok / n) : 0;
+    return `<div class="catrow"><div style="font-weight:700"><span style="color:${c.color}">■</span> ${c.name}</div>
+      <div class="catbar"><i style="width:${p}%;background:${c.color}"></i></div><div class="hint">${n ? p + '% · ' + x.ok + '/' + n : 'жауап жоқ'}</div></div>`;
+  }).join('');
+}
+function renderHard() {
+  if (!D.hardest.length) { $('#hard').innerHTML = '<p class="hint">Әзірге қате жоқ.</p>'; return; }
+  $('#hard').innerHTML = D.hardest.map(h => `<div class="hard"><b>${h.bad} қате</b><div><span class="st" style="background:${G.CATS[h.c].color}22;color:#374151">${G.CATS[h.c].name}</span> <span class="mathf">${fmt(h.q)}</span> <small class="hint">(дұрыс: ${h.ok})</small></div></div>`).join('');
+}
+document.querySelectorAll('.live th').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; if (sortK === k) sortDir *= -1; else { sortK = k; sortDir = ['coins', 'ok', 'bad', 'acc', 'props'].includes(k) ? -1 : 1; }
+  renderRows();
+});
+$('#search').oninput = () => D && renderRows();
+
+/* ---- student detail ---- */
+async function openStudent(id) {
+  try {
+    const d = await admin('student?id=' + encodeURIComponent(id));
+    const bad = d.answers.filter(a => !a.ok);
+    const m = $('#modal');
+    m.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><h2 style="margin:0;color:#312e81">${esc(d.name)}</h2>
+      <p class="hint" style="margin:4px 0 0">🪙 ${d.coins} тиын · ✅ ${d.ok} дұрыс · ❌ ${d.bad} қате</p></div><button class="btn" id="mClose">✕ Жабу</button></div>
+      <div class="actions" style="margin:12px 0"><button class="btn" data-f="all">Барлығы (${d.answers.length})</button><button class="btn" data-f="bad">Тек қателер (${bad.length})</button>
+      <button class="btn red" id="mKick" style="margin-left:auto">Ойыннан шығару</button></div>
+      <div id="ansList"></div>`;
+    const list = f => { const a = f === 'bad' ? bad : d.answers;
+      m.querySelector('#ansList').innerHTML = a.length ? a.map(x => `<div class="ans ${x.ok ? '' : 'bad'}"><small>${x.ok ? '✅ Дұрыс' : '❌ Қате'} · ${G.CATS[x.c].name} · ${G.DIFF_NAME[x.d]} · ${new Date(x.t).toLocaleTimeString('kk-KZ')}</small>
+        <div class="q mathf">${fmt(x.q)}</div>${x.ok ? '' : `<div>Студент жауабы: <b class="mathf">${fmt(x.given)}</b></div>`}<div>Дұрыс жауап: <b class="mathf">${fmt(x.answer)}</b></div>
+        ${x.ok ? '' : `<div class="hint" style="margin-top:4px">${fmt(x.expl)}</div>`}</div>`).join('') : '<p class="hint">Жауап жоқ.</p>'; };
+    list('all');
+    m.querySelectorAll('[data-f]').forEach(b => b.onclick = () => list(b.dataset.f));
+    m.querySelector('#mClose').onclick = () => $('#overlay').classList.add('hidden');
+    m.querySelector('#mKick').onclick = async () => { if (!confirm(`${d.name} ойыннан шығарылсын ба?`)) return; try { await admin('kick', {id}); $('#overlay').classList.add('hidden'); } catch (e) { alert(e.message); } };
+    $('#overlay').classList.remove('hidden');
+  } catch (e) { alert(e.message); }
+}
+$('#overlay').onclick = e => { if (e.target.id === 'overlay') $('#overlay').classList.add('hidden'); };
+
+/* ---- actions ---- */
+const act = async (fn) => { try { await fn(); } catch (e) { alert(e.message); } };
+$('#bNew').onclick = () => act(async () => {
+  if (D && D.students.length && !confirm('Жаңа сессия ашылса, ағымдағы ойын мен нәтижелер өшіріледі. Алдымен CSV жүктеп алуды ұмытпаңыз. Жалғастырамыз ба?')) return;
+  await admin('new', {settings: settings()});
+});
+$('#bStart').onclick = () => act(async () => { if (confirm(`Ойын басталсын ба? ${D ? D.totals.students : 0} студент үстелдерге бөлінеді.`)) await admin('start', {settings: settings()}); });
+$('#bEnd').onclick = () => act(async () => { if (confirm('Барлық үстелде ойын аяқталсын ба?')) await admin('end', {}); });
+$('#bCsv').onclick = () => { location.href = '/api/admin/export.csv?key=' + encodeURIComponent(key); };
+document.querySelectorAll('.settings select').forEach(s => s.onchange = () => { if (D && D.status === 'lobby') act(() => admin('settings', {settings: settings()})); });
+
+if (key) login(key);
+})();
+</script>
+</body>
+</html>

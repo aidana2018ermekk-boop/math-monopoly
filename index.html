@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Математикалық монополия — онлайн</title>
+<style>
+:root{--bg1:#0f0c29;--bg2:#302b63;--bg3:#24243e;--ink:#1f2937;--muted:#6b7280;--cell:#fffaf0;--line:#1e1b4b;--accent:#7c3aed;--accent2:#db2777;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3));background-attachment:fixed;min-height:100vh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.5}
+.hidden{display:none!important}
+.qtext,.opt,.mathf{font-family:"Cambria Math",Cambria,"STIX Two Math","Times New Roman",serif}
+
+/* screens */
+.center-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.card{width:min(520px,100%);background:#ffffffef;border-radius:24px;padding:28px 24px;box-shadow:0 30px 80px #0008;text-align:center}
+.logo{font-size:38px;letter-spacing:8px;background:linear-gradient(90deg,#ef4444,#f59e0b,#22c55e,#3b82f6,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent;font-family:"Cambria Math",serif;font-weight:700}
+.card h1{margin:4px 0 4px;font-size:clamp(22px,6vw,30px);color:#312e81}
+.card .sub{color:var(--muted);margin:0 0 18px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;text-align:left}
+.field label{font-size:13px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px}
+.field input{font:inherit;font-size:20px;padding:12px 14px;border-radius:12px;border:1.5px solid #d1d5db;width:100%}
+.field input:focus{outline:2px solid #a78bfa;border-color:#a78bfa}
+#jCode{letter-spacing:6px;text-align:center;font-weight:800}
+.big{width:100%;padding:15px;font-size:19px;font-weight:800;color:#fff;border:0;border-radius:14px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 10px 24px #7c3aed55}
+.err{color:var(--bad);font-weight:700;min-height:1.3em;margin:4px 0 10px}
+.wait-dots::after{content:'';animation:dots 1.5s steps(4) infinite}
+@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+.lobby-count{font-size:56px;font-weight:900;color:#7c3aed;margin:10px 0 0}
+.pill{display:inline-block;background:#ede9fe;color:#5b21b6;font-weight:700;border-radius:999px;padding:5px 12px;margin:3px;font-size:14px}
+
+/* topbar */
+.topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;color:#fff;flex-wrap:wrap}
+.brand{font-weight:800;letter-spacing:.5px;font-size:17px;display:flex;align-items:center;gap:8px}
+.brand-ico{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#db2777);font-family:"Cambria Math",serif;font-size:20px}
+.tb-info{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.tb-info span{background:#ffffff1f;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13.5px}
+.conn{width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:6px}
+.conn.off{background:#ef4444;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;max-width:1400px;margin:0 auto;padding:0 16px 20px;align-items:start}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}}
+.board-wrap{container-type:inline-size;width:100%;max-width:max(320px,calc(100vh - 80px));margin:0 auto}
+
+/* board */
+.board{position:relative;display:grid;grid-template-columns:1.45fr repeat(7,1fr) 1.45fr;grid-template-rows:1.45fr repeat(7,1fr) 1.45fr;aspect-ratio:1/1;gap:2px;background:var(--line);padding:3px;border-radius:16px;box-shadow:0 25px 70px #000a,0 0 0 4px #f59e0b55}
+.cell{background:var(--cell);position:relative;display:flex;overflow:hidden;min-width:0;min-height:0}
+.cell .cbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2px;min-width:0;gap:.3cqw}
+.cname{font-size:max(6px,1.18cqw);font-weight:700;line-height:1.08;color:#1f2937;word-break:break-word}
+.cprice{font-size:max(6px,1.1cqw);font-weight:700;color:#92400e}
+.cicon{font-size:max(12px,2.9cqw);line-height:1}
+.band{background:var(--c);flex:none}
+.s-b{flex-direction:column}.s-b .band{height:22%}
+.s-t{flex-direction:column-reverse}.s-t .band{height:22%}
+.s-l{flex-direction:row-reverse}.s-l .band{width:18%}
+.s-r{flex-direction:row}.s-r .band{width:18%}
+.s-corner .cicon{font-size:max(16px,4.4cqw)}
+.s-corner .cname{font-size:max(7px,1.35cqw);color:#7c2d12}
+.t-start{background:linear-gradient(135deg,#dcfce7,#86efac)}
+.t-gojail{background:linear-gradient(135deg,#fee2e2,#fca5a5)}
+.t-jail{background:linear-gradient(135deg,#e0e7ff,#a5b4fc)}
+.t-rest{background:linear-gradient(135deg,#fef9c3,#fde047)}
+.t-bonus{background:linear-gradient(160deg,#ecfdf5,#bbf7d0)}
+.t-pen{background:linear-gradient(160deg,#fff1f2,#fecdd3)}
+.t-chal{background:linear-gradient(160deg,#f5f3ff,#ddd6fe)}
+.cell .own{position:absolute;right:2px;bottom:2px;width:max(10px,2cqw);height:max(10px,2cqw);border-radius:50%;display:none;place-items:center;color:#fff;font-size:max(7px,1.2cqw);font-weight:700;font-family:"Cambria Math",serif;box-shadow:0 1px 3px #0006}
+.cell.owned .own{display:grid;background:var(--o)}
+.cell.owned{box-shadow:inset 0 0 0 max(2px,.35cqw) var(--o)}
+.cell.here{animation:herePulse 1.2s ease-in-out infinite}
+@keyframes herePulse{50%{filter:brightness(1.18) saturate(1.2)}}
+.center{grid-row:2/9;grid-column:2/9;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle at 30% 20%,#fff 0,#f5f3ff 35%,#ede9fe 60%,#e0e7ff 100%)}
+.center-inner{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.4cqw;padding:2cqw;text-align:center}
+.c-title{font-size:max(14px,4cqw);font-weight:900;line-height:1.05;background:linear-gradient(90deg,#dc2626,#ea580c,#ca8a04,#16a34a,#0891b2,#2563eb,#9333ea);-webkit-background-clip:text;background-clip:text;color:transparent}
+.c-turn{display:flex;align-items:center;gap:1cqw;background:#fff;border-radius:999px;padding:.6cqw 1.6cqw .6cqw .6cqw;box-shadow:0 4px 14px #4c1d9522;font-weight:800;font-size:max(12px,1.8cqw)}
+.tk{width:max(20px,3.2cqw);height:max(20px,3.2cqw);border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-family:"Cambria Math",serif;flex:none}
+.dice-row{display:flex;gap:2cqw}
+.die{width:max(38px,8cqw);height:max(38px,8cqw);background:linear-gradient(145deg,#fff,#e5e7eb);border-radius:22%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:16%;gap:6%;box-shadow:0 6px 0 #c7c9d1,0 10px 18px #0003;border:1px solid #d1d5db}
+.die span{border-radius:50%}
+.die span.pip{background:radial-gradient(circle at 35% 35%,#6d28d9,#312e81)}
+.die.rolling{animation:shake .12s linear infinite}
+@keyframes shake{0%{transform:rotate(-12deg) translateY(-3px)}50%{transform:rotate(12deg) translateY(2px)}100%{transform:rotate(-12deg) translateY(-3px)}}
+.roll{font-size:max(15px,2.2cqw);font-weight:900;color:#fff;border:0;border-radius:999px;padding:max(10px,1.1cqw) max(22px,3.4cqw);background:linear-gradient(90deg,#7c3aed,#db2777);box-shadow:0 8px 20px #7c3aed66}
+.roll:not(:disabled){animation:glow 1.6s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 8px 32px #db2777cc;transform:scale(1.04)}}
+.c-msg{min-height:1.2em;font-size:max(11px,1.5cqw);font-weight:700;color:#4c1d95}
+.tokens{position:absolute;inset:0;pointer-events:none}
+.token{position:absolute;width:max(18px,3.9cqw);height:max(18px,3.9cqw);border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;color:#fff;font-family:"Cambria Math",serif;font-weight:700;font-size:max(11px,2.3cqw);border:max(2px,.3cqw) solid #fff;box-shadow:0 4px 10px #0007;transition:left .2s ease,top .2s ease;z-index:2}
+.token.me{box-shadow:0 0 0 max(2px,.35cqw) #fde047,0 4px 12px #000a;z-index:3}
+.token.hop{animation:hop .22s ease}
+.token.gone{display:none}
+@keyframes hop{50%{transform:translate(-50%,-90%) scale(1.15)}}
+
+/* side */
+.side{display:flex;flex-direction:column;gap:14px}
+.panel{background:#ffffffee;border-radius:18px;padding:14px;box-shadow:0 12px 30px #0005}
+.panel h3{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.6px;color:#4c1d95}
+.pcard{border-radius:14px;padding:10px 12px;margin-bottom:10px;background:#f9fafb;border:2px solid #e5e7eb;border-left:6px solid var(--pc)}
+.pcard.cur{background:#fff;border-color:var(--pc);box-shadow:0 6px 20px #0002}
+.pcard.out{opacity:.5;filter:grayscale(.8)}
+.ptop{display:flex;align-items:center;gap:10px}
+.ptok{width:32px;height:32px;border-radius:50%;background:var(--pc);color:#fff;display:grid;place-items:center;font-family:"Cambria Math",serif;font-size:18px;font-weight:700;flex:none;position:relative}
+.ptok i{position:absolute;right:-2px;bottom:-2px;width:11px;height:11px;border-radius:50%;border:2px solid #fff;background:#22c55e}
+.ptok i.off{background:#9ca3af}
+.pname{flex:1;font-weight:800;min-width:0;overflow-wrap:anywhere}
+.pname small{display:inline-block;margin-left:5px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;vertical-align:middle}
+.tag-turn{background:#fde047;color:#713f12}.tag-me{background:#ede9fe;color:#5b21b6}.tag-skip{background:#e0e7ff;color:#3730a3}.tag-out{background:#fee2e2;color:#991b1b}
+.pcoins{font-size:19px;font-weight:900;color:#92400e;white-space:nowrap}
+.pmeta{font-size:12.5px;color:#4b5563;margin:6px 0}
+.pprops{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:#fff;border:1.5px solid var(--c);color:#1f2937}
+.none{font-size:12px;color:#9ca3af}
+.log{max-height:260px;overflow:auto;font-size:13px;display:flex;flex-direction:column;gap:5px}
+.log div{padding:5px 8px;border-radius:8px;background:#f3f4f6;line-height:1.35}
+.log .r{font-size:10.5px;color:#9ca3af;margin-right:4px}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:#0b0820b8;backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
+.modal{background:#fff;border-radius:22px;width:min(640px,100%);max-height:calc(100vh - 28px);overflow:auto;padding:20px;box-shadow:0 30px 90px #000a;animation:pop .25s ease;position:relative}
+@keyframes pop{from{transform:scale(.92) translateY(10px);opacity:0}}
+.x{position:absolute;right:12px;top:10px;border:0;background:#f3f4f6;border-radius:10px;width:34px;height:34px;font-size:18px}
+.qhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding-right:36px}
+.badge{color:#fff;font-weight:800;font-size:13px;padding:5px 11px;border-radius:999px}
+.diff{font-weight:800;font-size:13px;padding:5px 11px;border-radius:999px}
+.d1{background:#dcfce7;color:#166534}.d2{background:#fef3c7;color:#92400e}.d3{background:#fee2e2;color:#991b1b}
+.mult{background:#ede9fe;color:#5b21b6;font-weight:900;font-size:13px;padding:5px 11px;border-radius:999px}
+.who{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px}
+.who .tk{width:26px;height:26px;font-size:15px}
+.spect{background:#fef3c7;color:#92400e;border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px;margin-bottom:10px}
+.timer{position:relative;height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-bottom:6px}
+.timer i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#22c55e,#84cc16);border-radius:999px}
+.timer.low i{background:linear-gradient(90deg,#ef4444,#f97316)}
+.tline{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:10px}
+.tline b{font-size:16px;color:#111827}
+.qtext{font-size:21px;line-height:1.45;padding:14px;border-radius:14px;background:linear-gradient(135deg,#f5f3ff,#eef2ff);margin-bottom:12px;color:#1e1b4b}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{text-align:left;font-size:18px;padding:12px 14px;border-radius:12px;border:2px solid #e5e7eb;background:#fff;display:flex;align-items:center;gap:10px;color:#111827}
+.opt:not(:disabled):hover{border-color:#a78bfa;background:#faf5ff}
+.opt .k{flex:none;width:28px;height:28px;border-radius:8px;background:#ede9fe;color:#5b21b6;font-family:system-ui,sans-serif;font-weight:800;font-size:14px;display:grid;place-items:center}
+.opt.right{border-color:var(--ok);background:#dcfce7}
+.opt.wrong{border-color:var(--bad);background:#fee2e2}
+.opt:disabled{opacity:1;cursor:default}
+@media(max-width:560px){.opts{grid-template-columns:1fr}.qtext{font-size:19px}}
+.inrow{display:flex;gap:10px}
+.inrow input{flex:1;font-size:20px;padding:12px 14px;border-radius:12px;border:2px solid #d1d5db;font-family:"Cambria Math",serif;min-width:0}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.btn{font-size:16px;font-weight:800;padding:12px 18px;border-radius:12px;border:2px solid #e5e7eb;background:#fff;color:#374151}
+.btn.primary{background:linear-gradient(90deg,#7c3aed,#db2777);border:0;color:#fff}
+.btn.green{background:#16a34a;border:0;color:#fff}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btns .btn{flex:1}
+.qres{margin-top:12px;border-radius:14px;padding:14px 16px}
+.qres.ok{background:#f0fdf4;border:2px solid #86efac}
+.qres.bad{background:#fef2f2;border:2px solid #fca5a5}
+.qres .rt{font-size:20px;font-weight:900;margin-bottom:6px}
+.qres.ok .rt{color:var(--ok)}.qres.bad .rt{color:var(--bad)}
+.qres .ca{font-size:17px;margin:4px 0}
+.qres .ex{font-size:15px;color:#374151;line-height:1.5}
+.effects{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.effects div{background:#f5f3ff;border-radius:10px;padding:9px 12px;font-weight:600;font-size:15px}
+.qfoot{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:right}
+.mx{display:inline-grid;vertical-align:middle;gap:1px 10px;padding:2px 9px;margin:0 3px;border-left:2px solid currentColor;border-right:2px solid currentColor;border-radius:8px;text-align:center;line-height:1.25}
+.rank{width:100%;border-collapse:collapse;margin-top:10px;font-size:15px;text-align:left}
+.rank th{font-size:12px;text-transform:uppercase;color:var(--muted);padding:6px}
+.rank td{padding:8px 6px;border-top:1px solid #f3f4f6}
+.rank tr.me td{background:#fef9c3;font-weight:800}
+.trophy{font-size:64px;text-align:center}
+#toasts{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,520px)}
+.toast{background:#111827ee;color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;box-shadow:0 10px 25px #0006;text-align:center;animation:pop .25s ease}
+</style>
+</head>
+<body>
+
+<!-- Қосылу -->
+<section id="scJoin" class="center-screen hidden">
+  <div class="card">
+    <div class="logo">∑ π ∫ ∞</div>
+    <h1>МАТЕМАТИКАЛЫҚ МОНОПОЛИЯ</h1>
+    <p class="sub">Онлайн ойын — мұғалім берген кодпен қосылыңыз</p>
+    <div class="field"><label>Ойын коды</label><input id="jCode" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000"></div>
+    <div class="field"><label>Аты-жөніңіз</label><input id="jName" maxlength="24" autocomplete="name" placeholder="Мысалы: Айдана Ермекқызы"></div>
+    <div class="err" id="jErr"></div>
+    <button class="big" id="jBtn">▶ Ойынға қосылу</button>
+  </div>
+</section>
+
+<!-- Күту бөлмесі -->
+<section id="scLobby" class="center-screen hidden">
+  <div class="card">
+    <div class="logo">∑ π ∫ ∞</div>
+    <h1>Сәлем, <span id="lName"></span>!</h1>
+    <p class="sub">Сіз ойынға қосылдыңыз. Мұғалім ойынды бастауын күтіңіз<span class="wait-dots"></span></p>
+    <div class="lobby-count" id="lCount">0</div>
+    <p style="margin:0 0 14px;color:#4b5563;font-weight:700">студент қосылды</p>
+    <div id="lSettings"></div>
+  </div>
+</section>
+
+<!-- Шығарылды -->
+<section id="scKicked" class="center-screen hidden">
+  <div class="card"><div class="trophy">🚪</div><h1>Сіз ойыннан шығарылдыңыз</h1><p class="sub">Сұрақтарыңыз болса, мұғаліміңізге хабарласыңыз.</p>
+  <button class="big" id="kBtn">Қайта қосылу</button></div>
+</section>
+
+<!-- Ойын -->
+<section id="scGame" class="hidden">
+  <header class="topbar">
+    <div class="brand"><span class="brand-ico">∑</span> МАТЕМАТИКАЛЫҚ МОНОПОЛИЯ</div>
+    <div class="tb-info"><span><i class="conn" id="conn"></i><b id="tbMe"></b></span><span id="tbTable"></span><span id="tbRound"></span><span id="tbCoins"></span></div>
+  </header>
+  <main class="layout">
+    <div class="board-wrap">
+      <div class="board" id="board">
+        <div class="center"><div class="center-inner">
+          <div class="c-title">МАТЕМАТИКАЛЫҚ<br>МОНОПОЛИЯ</div>
+          <div class="c-turn" id="cTurn"></div>
+          <div class="dice-row" id="diceRow"></div>
+          <button id="btnRoll" class="roll" disabled>🎲 Лақтыру</button>
+          <div class="c-msg" id="cMsg"></div>
+        </div></div>
+        <div class="tokens" id="tokens"></div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="panel"><h3>👥 Үстелдегі ойыншылар</h3><div id="players"></div></div>
+      <div class="panel"><h3>📜 Ойын барысы</h3><div id="log" class="log"></div></div>
+    </aside>
+  </main>
+</section>
+
+<div id="overlay" class="overlay hidden"><div class="modal" id="modal"></div></div>
+<div id="toasts"></div>
+
+<script src="shared.js"></script>
+<script>
+(() => {
+'use strict';
+const G = window.SHARED;
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TOKEN_KEY = 'mm_online_token';
+let token = null; try { token = localStorage.getItem(TOKEN_KEY); } catch (e) {}
+let es = null, V = null, boardBuilt = false;
+let seenMove = null, animating = false, displayPos = null, modalKey = null, hiddenKey = null, qDeadline = 0, qTotal = 1, timerIv = null;
+
+/* ---------- sound ---------- */
+let AC = null;
+function tone(f, d = .12, type = 'sine', vol = .07, delay = 0) {
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02); } catch (e) {}
+}
+const SFX = {dice: () => tone(300 + Math.random() * 400, .04, 'square', .02), step: () => tone(520, .05, 'triangle', .035),
+  ok: () => { tone(523, .12); tone(659, .12, 'sine', .07, .1); tone(784, .2, 'sine', .07, .2); },
+  bad: () => { tone(220, .25, 'sawtooth', .04); tone(150, .3, 'sawtooth', .04, .15); },
+  turn: () => { tone(660, .12, 'triangle', .08); tone(880, .18, 'triangle', .08, .12); }};
+
+/* ---------- helpers ---------- */
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = m; $('#toasts').appendChild(t); setTimeout(() => t.remove(), 2800); }
+function fmt(s) {
+  return esc(s).replace(/\{\{m:([^}]+)\}\}/g, (_, b) => { const rows = b.split(';').map(r => r.split(','));
+    return `<span class="mx" style="grid-template-columns:repeat(${rows[0].length},auto)">${rows.flat().map(x => `<span>${x.trim()}</span>`).join('')}</span>`; });
+}
+function show(id) { ['#scJoin', '#scLobby', '#scGame', '#scKicked'].forEach(s => $(s).classList.toggle('hidden', s !== id)); }
+function gridPos(i) { if (i === 0) return [9, 9]; if (i < 8) return [9, 9 - i]; if (i === 8) return [9, 1]; if (i < 16) return [9 - (i - 8), 1]; if (i === 16) return [1, 1]; if (i < 24) return [1, 1 + (i - 16)]; if (i === 24) return [1, 9]; return [1 + (i - 24), 9]; }
+function sideOf(i) { if (i % 8 === 0) return 'corner'; if (i < 8) return 'b'; if (i < 16) return 'l'; if (i < 24) return 't'; return 'r'; }
+const PIPS = {1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]};
+function setDice(vals, rolling) { $('#diceRow').innerHTML = vals.map(v => `<div class="die ${rolling ? 'rolling' : ''}">${[1,2,3,4,5,6,7,8,9].map(j => `<span class="${PIPS[v].includes(j) ? 'pip' : ''}"></span>`).join('')}</div>`).join(''); }
+const tokenHTML = p => `<span class="tk" style="background:${p.color}">${p.token}</span>`;
+const settingsText = st => `${st.mode === 'rounds' ? `${st.rounds} раунд` : st.mode === 'target' ? `Мақсат: ${st.target} тиын` : 'Соңғы қалған ойыншы'} · Үстелде ${st.tableSize} адамға дейін · ${st.timer} с`;
+
+async function api(action, extra = {}) {
+  try {
+    const r = await fetch('/api/act', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token, action, ...extra})});
+    const j = await r.json(); if (!r.ok) toast(esc(j.error || 'Қате')); return r.ok;
+  } catch (e) { toast('Байланыс үзілді. Қайталап көріңіз.'); return false; }
+}
+
+/* ---------- join ---------- */
+function initJoin() {
+  const qs = new URLSearchParams(location.search);
+  const c = qs.get('code') || qs.get('c'); if (c) $('#jCode').value = c.replace(/\D/g, '').slice(0, 6);
+  try { $('#jName').value = localStorage.getItem('mm_name') || ''; } catch (e) {}
+  $('#jBtn').onclick = join;
+  [$('#jCode'), $('#jName')].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') join(); }));
+}
+async function join() {
+  $('#jErr').textContent = ''; $('#jBtn').disabled = true;
+  try {
+    const name = $('#jName').value.trim();
+    const r = await fetch('/api/join', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code: $('#jCode').value.trim(), name})});
+    const j = await r.json();
+    if (!r.ok) { $('#jErr').textContent = j.error || 'Қате'; return; }
+    token = j.token; try { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem('mm_name', name); } catch (e) {}
+    connect();
+  } catch (e) { $('#jErr').textContent = 'Серверге қосылу мүмкін болмады.'; }
+  finally { $('#jBtn').disabled = false; }
+}
+function logout(msg) {
+  token = null; try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  if (es) es.close(); es = null; V = null; closeModal(); show('#scJoin'); if (msg) $('#jErr').textContent = msg;
+}
+
+/* ---------- connection ---------- */
+function connect() {
+  if (es) es.close();
+  es = new EventSource('/api/stream?token=' + encodeURIComponent(token));
+  es.addEventListener('state', e => onState(JSON.parse(e.data)));
+  es.onopen = () => $('#conn') && $('#conn').classList.remove('off');
+  es.onerror = async () => {
+    $('#conn').classList.add('off');
+    if (es.readyState === 2) { // сервер қосылуды қабылдамады
+      try { const r = await fetch('/api/info'); if (r.ok) { logout(V ? 'Мұғалім жаңа ойын ашты. Жаңа кодпен қайта кіріңіз.' : ''); return; } } catch (e) {}
+      setTimeout(connect, 3000);
+    }
+  };
+}
+
+/* ---------- state ---------- */
+function onState(v) {
+  if (v.kicked) { if (es) es.close(); try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} closeModal(); show('#scKicked'); return; }
+  const prev = V; V = v;
+  if (!v.table) {
+    show('#scLobby'); $('#lName').textContent = v.me.name; $('#lCount').textContent = v.students;
+    $('#lSettings').innerHTML = `<span class="pill">${esc(settingsText(v.settings))}</span>` + (v.status === 'ended' ? '<p class="sub" style="margin-top:12px">Ойын аяқталды.</p>' : '');
+    return;
+  }
+  show('#scGame');
+  if (!boardBuilt) buildBoard();
+  const t = v.table;
+  // жаңа жүріс — анимация
+  if (t.move && t.move.id !== seenMove) {
+    const first = seenMove === null; seenMove = t.move.id;
+    if (!first) { animateMove(t.move); return; }
+  }
+  if (prev && prev.table && prev.table.cur !== t.cur && t.cur === v.me.id && !t.over) { SFX.turn(); toast('🎲 Сіздің кезегіңіз!'); }
+  render();
+}
+async function animateMove(m) {
+  animating = true; render();
+  const t = V.table, p = t.players.find(x => x.id === m.pid);
+  for (let f = 0; f < 10; f++) { setDice(m.dice.map(() => 1 + Math.floor(Math.random() * 6)), true); SFX.dice(); await sleep(60 + f * 5); }
+  setDice(m.dice);
+  $('#cMsg').textContent = `${p ? p.name : ''}: ${m.dice.join(' + ')}${m.dice.length > 1 ? ' = ' + m.steps : ''} қадам`;
+  displayPos = {pid: m.pid, pos: m.from};
+  for (let s = 0; s < m.steps; s++) { displayPos.pos = (displayPos.pos + 1) % G.N_CELLS; renderTokens(m.pid); SFX.step(); await sleep(220); }
+  displayPos = null; animating = false; render();
+}
+
+/* ---------- render ---------- */
+function buildBoard() {
+  const b = $('#board'), tokens = $('#tokens');
+  G.CELLS.forEach((c, i) => {
+    const [r, col] = gridPos(i); const el = document.createElement('div');
+    el.className = `cell s-${sideOf(i)} t-${c.t}`; el.style.gridRow = r; el.style.gridColumn = col; el.dataset.i = i;
+    if (c.t === 'prop') { el.style.setProperty('--c', G.CATS[c.cat].color); el.title = `${c.name} — ${G.CATS[c.cat].name}`;
+      el.innerHTML = `<div class="band"></div><div class="cbody"><div class="cname">${c.name}</div><div class="cprice">🪙${c.price}</div></div><div class="own"></div>`; }
+    else { el.title = c.name; el.innerHTML = `<div class="cbody"><div class="cicon">${c.icon}</div><div class="cname">${c.name}</div></div>`; }
+    b.insertBefore(el, tokens);
+  });
+  setDice([1]); boardBuilt = true;
+  window.addEventListener('resize', () => V && V.table && renderTokens());
+}
+function me() { return V.table.players.find(p => p.id === V.me.id); }
+function render() {
+  const t = V.table, mine = me(), cur = t.players.find(p => p.id === t.cur);
+  $('#tbMe').textContent = V.me.name; $('#tbTable').textContent = `Үстел №${t.num}`;
+  $('#tbRound').textContent = `Раунд ${t.round} / ${V.settings.rounds}`; $('#tbCoins').textContent = `🪙 ${mine ? mine.coins : 0}`;
+  // owners
+  document.querySelectorAll('.cell').forEach(el => {
+    const i = +el.dataset.i; if (G.CELLS[i].t !== 'prop') return;
+    const o = t.owners[i], op = o != null && t.players.find(p => p.id === o);
+    el.classList.toggle('owned', !!op);
+    if (op) { el.style.setProperty('--o', op.color); el.querySelector('.own').textContent = op.token; }
+  });
+  renderTokens();
+  // center
+  const myTurn = t.cur === V.me.id && !t.over;
+  $('#cTurn').innerHTML = t.over ? '🏁 Ойын аяқталды' : cur ? `${tokenHTML(cur)} ${myTurn ? 'Сіздің кезегіңіз!' : 'Кезек: ' + esc(cur.name)}` : '';
+  const btn = $('#btnRoll');
+  btn.disabled = !(myTurn && t.phase === 'roll' && !animating);
+  btn.textContent = t.over ? '🏆 Нәтижелер' : (myTurn && mine && mine.skip ? '⏸ Кезекті өткізу' : '🎲 Лақтыру');
+  if (t.over) btn.disabled = false;
+  if (!animating) $('#cMsg').textContent = t.over ? (t.endReason || '') : (t.phase === 'roll' ? (myTurn ? 'Сүйекті лақтырыңыз!' : `${cur ? cur.name : ''} сүйек лақтыруда…`) : '');
+  renderPlayers(); renderLog(); renderModal();
+}
+function renderTokens(hop) {
+  const t = V.table, layer = $('#tokens'), b = $('#board'), W = b.clientWidth;
+  document.querySelectorAll('.cell.here').forEach(e => e.classList.remove('here'));
+  const posOf = p => displayPos && displayPos.pid === p.id ? displayPos.pos : p.pos;
+  const cur = t.players.find(p => p.id === t.cur);
+  if (cur && !t.over) { const ce = b.querySelector(`.cell[data-i="${posOf(cur)}"]`); if (ce) ce.classList.add('here'); }
+  layer.querySelectorAll('.token').forEach(el => { if (!t.players.some(p => p.id === el.dataset.p)) el.remove(); });
+  t.players.forEach(p => {
+    let el = layer.querySelector(`[data-p="${p.id}"]`);
+    if (!el) { el = document.createElement('div'); el.className = 'token'; el.dataset.p = p.id; layer.appendChild(el); }
+    el.style.background = p.color; el.textContent = p.token; el.title = p.name;
+    el.classList.toggle('gone', !p.active); el.classList.toggle('me', p.id === V.me.id);
+    const pos = posOf(p), cell = b.querySelector(`.cell[data-i="${pos}"]`);
+    const same = t.players.filter(q => q.active && posOf(q) === pos); const slot = Math.max(0, same.findIndex(q => q.id === p.id));
+    const offs = [[-1, -1], [1, -1], [-1, 1], [1, 1]], d = same.length > 1 ? W * .019 : 0;
+    el.style.left = (cell.offsetLeft + cell.offsetWidth / 2 + offs[slot][0] * d) + 'px';
+    el.style.top = (cell.offsetTop + cell.offsetHeight / 2 + offs[slot][1] * d) + 'px';
+    if (hop === p.id) { el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop'); }
+  });
+}
+function renderPlayers() {
+  const t = V.table;
+  $('#players').innerHTML = t.players.map(p => `<div class="pcard ${p.id === t.cur && !t.over ? 'cur' : ''} ${p.active ? '' : 'out'}" style="--pc:${p.color}">
+    <div class="ptop"><div class="ptok">${p.token}<i class="${p.online ? '' : 'off'}" title="${p.online ? 'желіде' : 'желіден тыс'}"></i></div>
+    <div class="pname">${esc(p.name)}${p.id === V.me.id ? '<small class="tag-me">сіз</small>' : ''}${p.id === t.cur && !t.over && p.active ? '<small class="tag-turn">кезегі</small>' : ''}${p.skip ? '<small class="tag-skip">⏸</small>' : ''}${!p.active ? '<small class="tag-out">банкрот</small>' : ''}</div>
+    <div class="pcoins">🪙 ${p.coins}</div></div>
+    <div class="pmeta">📍 №${p.pos} · ${G.CELLS[p.pos].name} | ✅ ${p.ok} ❌ ${p.bad}</div>
+    <div class="pprops">${p.props.length ? p.props.map(i => `<span class="chip" style="--c:${G.CATS[G.CELLS[i].cat].color}">${G.CELLS[i].name}</span>`).join('') : '<span class="none">Мүлік әлі жоқ</span>'}</div></div>`).join('');
+}
+function renderLog() { $('#log').innerHTML = V.table.log.map(l => `<div><span class="r">Р${l.r}</span>${esc(l.h)}</div>`).join(''); }
+
+/* ---------- modal ---------- */
+function closeModal() { $('#overlay').classList.add('hidden'); $('#modal').innerHTML = ''; modalKey = null; clearInterval(timerIv); }
+function openModal(html) { const m = $('#modal'); m.innerHTML = html; $('#overlay').classList.remove('hidden'); m.scrollTop = 0; return m; }
+function renderModal() {
+  const t = V.table;
+  if (animating) return;
+  let key = null;
+  if (t.phase === 'question' && t.q) key = 'q' + (t.move && t.move.id);
+  else if (t.phase === 'result' && t.q) key = 'r' + (t.move && t.move.id);
+  else if (t.over) key = 'over';
+  if (!key || key === hiddenKey) { if (modalKey) closeModal(); return; }
+  if (key === modalKey) { if (key === 'over') return; return; }
+  modalKey = key; clearInterval(timerIv);
+  if (key[0] === 'q') questionModal(); else if (key[0] === 'r') resultModal(); else overModal();
+}
+function qHead(t, q, p) {
+  const cat = G.CATS[q.c];
+  return `<button class="x" id="mX" title="Жасыру">✕</button><div class="qhead"><span class="badge" style="background:${cat.color}">${cat.name}</span><span class="diff d${q.d}">${G.DIFF_NAME[q.d]}</span>${q.mult > 1 ? `<span class="mult">⚡ ×${q.mult}</span>` : ''}<span class="who">${p ? tokenHTML(p) + ' ' + esc(p.name) : ''}</span></div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:6px">📍 №${q.cell} · ${G.CELLS[q.cell].name}</div>`;
+}
+function bindHide(m, key) { const x = m.querySelector('#mX'); if (x) x.onclick = () => { hiddenKey = key; closeModal(); }; }
+function questionModal() {
+  const t = V.table, q = t.q, p = t.players.find(x => x.id === t.cur), mine = t.cur === V.me.id;
+  qDeadline = Date.now() + q.leftMs; qTotal = q.total * 1000;
+  const L = ['A', 'B', 'C', 'D'];
+  const body = q.type === 'mc'
+    ? `<div class="opts">${q.opts.map((o, j) => `<button class="opt" data-j="${j}" ${mine ? '' : 'disabled'}><span class="k">${L[j]}</span><span>${fmt(o)}</span></button>`).join('')}</div>`
+    : (mine ? `<div class="inrow"><input id="qIn" type="text" inputmode="decimal" autocomplete="off" placeholder="Жауабыңыз..."><button class="btn primary" id="qSend">Тексеру</button></div><div class="hint">Жауапты сан түрінде жазыңыз: 5, −2, 0,5 немесе 1/2</div>`
+            : `<div class="hint">Жауап сан түрінде енгізіледі.</div>`);
+  const m = openModal(`${qHead(t, q, p)}${mine ? '' : `<div class="spect">👀 ${esc(p ? p.name : '')} жауап беруде. Сіз де ойша шығарып көріңіз!</div>`}
+    <div class="timer" id="qTimer"><i style="width:100%"></i></div><div class="tline"><span>⏱ Қалған уақыт</span><b id="qT">${q.total}</b></div>
+    <div class="qtext">${fmt(q.text)}</div>${body}
+    <div class="qfoot">Дұрыс: <b style="color:#16a34a">+${q.win}</b> · Қате/уақыт бітсе: <b style="color:#dc2626">−${q.lose}</b></div>`);
+  bindHide(m, modalKey);
+  let sent = false;
+  const send = async val => { if (sent) return; sent = true; m.querySelectorAll('.opt,#qSend,#qIn').forEach(b => b.disabled = true); if (!(await api('answer', {value: val}))) { sent = false; m.querySelectorAll('.opt,#qSend,#qIn').forEach(b => b.disabled = false); } };
+  if (mine) {
+    if (q.type === 'mc') m.querySelectorAll('.opt').forEach(b => b.onclick = () => { b.style.borderColor = '#7c3aed'; send(+b.dataset.j); });
+    else { const inp = m.querySelector('#qIn'); const go = () => { if (!inp.value.trim()) { toast('Жауапты жазыңыз'); return; } send(inp.value); };
+      m.querySelector('#qSend').onclick = go; inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); setTimeout(() => inp.focus(), 80); }
+  }
+  const bar = m.querySelector('#qTimer i'), tEl = m.querySelector('#qT');
+  timerIv = setInterval(() => {
+    const left = qDeadline - Date.now(), f = Math.max(0, Math.min(1, left / qTotal));
+    bar.style.width = (f * 100) + '%'; tEl.textContent = Math.max(0, Math.min(q.total, Math.ceil(left / 1000)));
+    if (f < .3) m.querySelector('#qTimer').classList.add('low');
+  }, 150);
+}
+function resultModal() {
+  const t = V.table, q = t.q, r = t.result, p = t.players.find(x => x.id === t.cur), mine = t.cur === V.me.id;
+  if (!r) return;
+  if (mine) (r.correct ? SFX.ok : SFX.bad)();
+  const L = ['A', 'B', 'C', 'D'];
+  const opts = q.type === 'mc' ? `<div class="opts">${q.opts.map((o, j) => `<button class="opt ${j === r.correctIdx ? 'right' : (j === r.chosenIdx ? 'wrong' : '')}" disabled><span class="k">${L[j]}</span><span>${fmt(o)}</span></button>`).join('')}</div>` : '';
+  const who = mine ? '' : `${esc(p ? p.name : '')}: `;
+  const btns = mine
+    ? (r.canBuy ? `<div class="btns"><button class="btn green" id="rBuy">✔ Сатып алу (🪙 ${r.price})</button><button class="btn" id="rSkip">✖ Бас тарту</button></div>`
+                : `<div class="btns"><button class="btn primary" id="rNext">Жалғастыру →</button></div>`)
+    : `<div class="spect" style="margin-top:12px">⏳ ${esc(p ? p.name : '')} жалғастыруын күтеміз…</div>`;
+  const m = openModal(`${qHead(t, q, p)}<div class="qtext">${fmt(q.text)}</div>${opts}
+    <div class="qres ${r.correct ? 'ok' : 'bad'}"><div class="rt">${who}${r.correct ? '✅ Дұрыс!' : (r.timeout ? '⏰ Уақыт бітті!' : '❌ Қате!')} ${r.delta > 0 ? '+' : '−'}${Math.abs(r.delta)} тиын</div>
+      ${q.type === 'in' && !r.timeout ? `<div class="ca mathf">Берілген жауап: <b>${esc(r.given)}</b></div>` : ''}
+      <div class="ca mathf">Дұрыс жауап: <b>${fmt(r.answer)}</b></div><div class="ex"><b>Түсіндірме:</b> ${fmt(r.expl)}</div></div>
+    ${r.effects.length ? `<div class="effects">${r.effects.map(e => `<div>${esc(e)}</div>`).join('')}</div>` : ''}${btns}`);
+  bindHide(m, modalKey);
+  let sent = false;
+  const go = async buy => { if (sent) return; sent = true; m.querySelectorAll('.btns .btn').forEach(b => b.disabled = true); if (!(await api('continue', {buy}))) sent = false; };
+  if (mine) { if (r.canBuy) { m.querySelector('#rBuy').onclick = () => go(true); m.querySelector('#rSkip').onclick = () => go(false); } else m.querySelector('#rNext').onclick = () => go(false); }
+}
+function overModal() {
+  const t = V.table;
+  const rows = t.players.slice().sort((a, b) => (b.active - a.active) || (b.coins - a.coins));
+  const ov = V.overall;
+  const m = openModal(`<button class="x" id="mX">✕</button><div class="trophy">🏆</div><h2 style="text-align:center;margin:4px 0">${esc(rows[0].name)} үстелде жеңді!</h2>
+    <p style="text-align:center;color:#6b7280">${esc(t.endReason || '')}</p>
+    <table class="rank"><tr><th>#</th><th>Ойыншы</th><th>Тиын</th><th>✅/❌</th></tr>
+    ${rows.map((p, k) => `<tr class="${p.id === V.me.id ? 'me' : ''}"><td>${['🥇', '🥈', '🥉', '4'][k]}</td><td>${esc(p.name)}</td><td>🪙 ${p.coins}</td><td>${p.ok}/${p.bad}</td></tr>`).join('')}</table>
+    ${ov ? `<h3 style="margin:18px 0 0">Жалпы рейтинг: сіз ${ov.rank}-орындасыз (${ov.total} студенттің ішінде)</h3>
+      <table class="rank"><tr><th>#</th><th>Студент</th><th>Тиын</th><th>✅/❌</th></tr>${ov.top.map((p, k) => `<tr class="${p.name === V.me.name ? 'me' : ''}"><td>${k + 1}</td><td>${esc(p.name)}</td><td>🪙 ${p.coins}</td><td>${p.ok}/${p.bad}</td></tr>`).join('')}</table>`
+      : '<p style="text-align:center;color:#6b7280;margin-top:14px">Басқа үстелдер әлі ойнап жатыр. Жалпы рейтинг барлығы аяқтағанда шығады.</p>'}`);
+  bindHide(m, 'over');
+}
+
+/* ---------- init ---------- */
+$('#btnRoll').onclick = () => {
+  if (!V || !V.table) return;
+  if (V.table.over) { hiddenKey = null; modalKey = null; renderModal(); return; }
+  $('#btnRoll').disabled = true; api('roll');
+};
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !$('#btnRoll').disabled && $('#overlay').classList.contains('hidden') && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('#btnRoll').click(); }
+});
+$('#kBtn').onclick = () => logout('');
+initJoin();
+if (token) connect(); else show('#scJoin');
+})();
+</script>
+</body>
+</html>
