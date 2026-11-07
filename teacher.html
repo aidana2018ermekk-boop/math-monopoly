@@ -77,6 +77,14 @@ table.live{width:100%;border-collapse:collapse;font-size:14.5px}
 .mx{display:inline-grid;vertical-align:middle;gap:1px 8px;padding:1px 7px;margin:0 3px;border-left:2px solid currentColor;border-right:2px solid currentColor;border-radius:7px;text-align:center}
 .search{font:inherit;padding:8px 11px;border-radius:10px;border:1.5px solid #d1d5db;min-width:220px}
 .hint{color:var(--muted);font-size:13.5px}
+.sesshead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.sesslist{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.sess{flex:none;min-width:170px;text-align:left;border:2px solid var(--line);background:#fff;border-radius:14px;padding:10px 14px;font:inherit;color:var(--ink)}
+.sess b{display:block;font-size:15.5px;color:#312e81;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .c{font-weight:900;letter-spacing:2px;font-size:14px;color:#7c3aed}
+.sess small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+.sess.on{border-color:var(--accent);background:#f5f3ff;box-shadow:0 0 0 3px #7c3aed22}
+.sname{font-size:20px;font-weight:900;color:#312e81;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -95,10 +103,17 @@ table.live{width:100%;border-collapse:collapse;font-size:14.5px}
 </div>
 
 <main id="scMain" class="hidden">
+  <div class="panel">
+    <div class="sesshead"><h2 style="margin:0">Сессиялар (топтар)</h2>
+      <div class="actions"><input id="newName" class="search" maxlength="24" placeholder="Атауы, мысалы: МЕК-233"><button class="btn primary" id="bNew">＋ Жаңа сессия ашу</button></div></div>
+    <div id="sessList" class="sesslist"></div>
+    <p class="hint" style="margin:8px 0 0">Әр сессияның өз коды, өз студенттері және өз рейтингі бар. Бірнеше сессия бір уақытта жүре береді — басқару үшін керегін таңдаңыз.</p>
+  </div>
   <div class="top">
     <div class="panel">
       <h2>Ойынға қосылу</h2>
-      <div id="noSession" class="hidden"><p class="hint">Әзірге сессия жоқ. Оң жақтағы баптауларды таңдап, «Жаңа сессия ашу» батырмасын басыңыз.</p></div>
+      <div id="noSession" class="hidden"><p class="hint">Әзірге сессия жоқ. Жоғарыда атауын жазып, «Жаңа сессия ашу» батырмасын басыңыз.</p></div>
+      <div class="sname hidden" id="sName"></div>
       <div id="hasSession" class="codebox">
         <div id="qr"></div>
         <div><div class="hint">Ойын коды</div><div class="code" id="code">——</div><div class="joinurl" id="joinUrl"></div>
@@ -119,7 +134,8 @@ table.live{width:100%;border-collapse:collapse;font-size:14.5px}
       <div class="actions">
         <button class="btn green" id="bStart">▶ Ойынды бастау</button>
         <button class="btn red" id="bEnd">■ Ойынды аяқтау</button>
-        <button class="btn" id="bNew">＋ Жаңа сессия ашу</button>
+        <button class="btn" id="bRen">✎ Атын өзгерту</button>
+        <button class="btn" id="bDel">🗑 Сессияны жабу</button>
         <button class="btn" id="bCsv">⬇ Нәтижелерді жүктеу (CSV)</button>
         <span class="hint" id="actHint"></span>
       </div>
@@ -170,10 +186,14 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmt = s => esc(s).replace(/\{\{m:([^}]+)\}\}/g, (_, b) => { const rows = b.split(';').map(r => r.split(',')); return `<span class="mx" style="grid-template-columns:repeat(${rows[0].length},auto)">${rows.flat().map(x => `<span>${x.trim()}</span>`).join('')}</span>`; });
 const KEY = 'mm_admin_key';
 let key = null; try { key = sessionStorage.getItem(KEY); } catch (e) {}
+const CKEY = 'mm_admin_code';
+let cur = null; try { cur = sessionStorage.getItem(CKEY); } catch (e) {}
+let L = [];
 let es = null, D = null, sortK = 'rank', sortDir = 1, lastQr = null, prevOk = {};
 const STATE = {lobby: 'Күтуде', waiting: 'Кезек күтуде', turn: 'Кезегі', answering: 'Жауап беруде', over: 'Аяқтады', bankrupt: 'Банкрот'};
 
 async function admin(path, body) {
+  path += (path.includes('?') ? '&' : '?') + 'code=' + encodeURIComponent(cur || '');
   const r = await fetch('/api/admin/' + path, {method: body === undefined ? 'GET' : 'POST', headers: {'Content-Type': 'application/json', 'x-admin-key': key}, body: body === undefined ? undefined : JSON.stringify(body)});
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Қате');
@@ -203,10 +223,22 @@ $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login($('#pw'
 
 function connect() {
   if (es) es.close();
-  es = new EventSource('/api/admin/stream?key=' + encodeURIComponent(key));
-  es.addEventListener('dash', e => { D = JSON.parse(e.data); render(); });
+  es = new EventSource('/api/admin/stream?key=' + encodeURIComponent(key) + '&code=' + encodeURIComponent(cur || ''));
+  es.addEventListener('dash', e => { D = JSON.parse(e.data); if (D) setCur(D.code); render(); renderList(); });
+  es.addEventListener('list', e => { L = JSON.parse(e.data); renderList();
+    if (cur && !L.some(x => x.code === cur)) { cur = null; select(L[0] ? L[0].code : null); } });
   es.onopen = () => { $('#status').innerHTML = '<b></b>Тікелей эфир'; };
   es.onerror = () => { $('#status').innerHTML = '<b class="off"></b>Байланыс үзілді — қайта қосылуда'; };
+}
+
+function setCur(c) { cur = c; try { c ? sessionStorage.setItem(CKEY, c) : sessionStorage.removeItem(CKEY); } catch (e) {} }
+function select(code) { setCur(code); D = null; lastQr = null; prevOk = {}; render(); renderList(); connect(); }
+const SST = {lobby: 'Күтуде', running: 'Жүріп жатыр', ended: 'Аяқталды'};
+function renderList() {
+  if (!L.length) { $('#sessList').innerHTML = '<span class="hint">Сессия жоқ.</span>'; return; }
+  $('#sessList').innerHTML = L.map(x => `<button class="sess ${x.code === cur ? 'on' : ''}" data-c="${x.code}"><b>${esc(x.name)}</b>
+    <span class="c">${x.code}</span><small>👥 ${x.students} (желіде ${x.online}) · ${SST[x.status] || x.status}</small></button>`).join('');
+  $('#sessList').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { if (b.dataset.c !== cur) select(b.dataset.c); });
 }
 
 /* ---- render ---- */
@@ -215,6 +247,8 @@ function render() {
   $('#noSession').classList.toggle('hidden', has); $('#hasSession').classList.toggle('hidden', !has);
   const st = D ? D.status : null;
   $('#bStart').disabled = st !== 'lobby'; $('#bEnd').disabled = st !== 'running'; $('#bCsv').disabled = !has;
+  $('#bRen').disabled = !has; $('#bDel').disabled = !has;
+  $('#sName').classList.toggle('hidden', !has); if (has) $('#sName').textContent = D.name;
   document.querySelectorAll('.settings select').forEach(s => s.disabled = has && st !== 'lobby');
   $('#actHint').textContent = !has ? '' : st === 'lobby' ? 'Студенттер қосылуда. Дайын болғанда «Ойынды бастау» батырмасын басыңыз.'
     : st === 'running' ? 'Ойын жүріп жатыр. Кеш келген студенттер бос үстелге автоматты қосылады.' : 'Ойын аяқталды. Нәтижелерді жүктеп алуға болады.';
@@ -294,12 +328,18 @@ $('#overlay').onclick = e => { if (e.target.id === 'overlay') $('#overlay').clas
 /* ---- actions ---- */
 const act = async (fn) => { try { await fn(); } catch (e) { alert(e.message); } };
 $('#bNew').onclick = () => act(async () => {
-  if (D && D.students.length && !confirm('Жаңа сессия ашылса, ағымдағы ойын мен нәтижелер өшіріледі. Алдымен CSV жүктеп алуды ұмытпаңыз. Жалғастырамыз ба?')) return;
-  await admin('new', {settings: settings()});
+  const r = await admin('new', {settings: settings(), name: $('#newName').value.trim()});
+  $('#newName').value = ''; select(r.code);
+});
+$('#newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bNew').click(); });
+$('#bRen').onclick = () => act(async () => { const n = prompt('Сессияның жаңа атауы:', D ? D.name : ''); if (n && n.trim()) await admin('rename', {name: n.trim()}); });
+$('#bDel').onclick = () => act(async () => {
+  if (!confirm(`«${D.name}» сессиясы жабылып, оның нәтижелері өшіріледі. Алдымен CSV жүктеп алуды ұмытпаңыз. Жабамыз ба?`)) return;
+  await admin('delete', {}); const next = L.find(x => x.code !== cur); select(next ? next.code : null);
 });
 $('#bStart').onclick = () => act(async () => { if (confirm(`Ойын басталсын ба? ${D ? D.totals.students : 0} студент үстелдерге бөлінеді.`)) await admin('start', {settings: settings()}); });
 $('#bEnd').onclick = () => act(async () => { if (confirm('Барлық үстелде ойын аяқталсын ба?')) await admin('end', {}); });
-$('#bCsv').onclick = () => { location.href = '/api/admin/export.csv?key=' + encodeURIComponent(key); };
+$('#bCsv').onclick = () => { location.href = '/api/admin/export.csv?key=' + encodeURIComponent(key) + '&code=' + encodeURIComponent(cur || ''); };
 document.querySelectorAll('.settings select').forEach(s => s.onchange = () => { if (D && D.status === 'lobby') act(() => admin('settings', {settings: settings()})); });
 
 if (key) login(key);

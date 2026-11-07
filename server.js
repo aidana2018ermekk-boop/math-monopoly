@@ -17,7 +17,9 @@ const G = require(pick('public/shared.js', 'shared.js'));
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ('m' + crypto.randomInt(100000, 999999));
 const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'session.json');
+const DATA_FILE = path.join(DATA_DIR, 'sessions.json');
+const OLD_DATA_FILE = path.join(DATA_DIR, 'session.json');
+const MAX_SESSIONS = 30;
 const FLAT = !fs.existsSync(path.join(__dirname, 'public', 'index.html'));
 const PUBLIC_DIR = FLAT ? __dirname : path.join(__dirname, 'public');
 const FLAT_OK = new Set(['/index.html', '/teacher.html', '/shared.js']);
@@ -27,28 +29,45 @@ const QBYID = new Map(QS.map(q => [q.id, q]));
 const DEFAULT_SETTINGS = {tableSize: 4, mode: 'rounds', rounds: 10, target: 3000, diff: 'mix', timer: 30, dice: 1};
 
 /* ------------------------------ STATE ------------------------------ */
-let session = null;          // сақталатын күй
+const sessions = {};         // code -> сессия (бірнеше сессия қатар жүреді)
+let session = null;          // ағымдағы өңделіп жатқан сессия (use() арқылы таңдалады)
 const studentStreams = new Map(); // studentId -> Set(res)
-const adminStreams = new Set();
-const timers = new Map();    // tableId -> timeout
-let dirty = false, dashDirty = true;
+const sidCode = new Map();   // studentId -> code
+const adminStreams = new Map(); // res -> таңдалған сессия коды
+const timers = new Map();    // code:tableId -> timeout
+const dashDirty = new Set(); // жаңартылуы керек сессиялар
+let dirty = false, listDirty = true;
+function use(code) { session = (code && sessions[code]) || null; return session; }
 
 const rnd = n => crypto.randomInt(0, n);
 const now = () => Date.now();
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function newId(n = 8) { return crypto.randomBytes(n).toString('hex'); }
-function newCode() { return String(crypto.randomInt(100000, 999999)); }
+function newCode() { let c; do c = String(crypto.randomInt(100000, 999999)); while (sessions[c]); return c; }
 
-function newSession(settings) {
-  for (const t of timers.values()) clearTimeout(t);
-  timers.clear();
+function newSession(settings, name) {
+  // ең ескі аяқталған сессияларды өшіру (шектен асса)
+  const all = Object.values(sessions).sort((a, b) => a.createdAt - b.createdAt);
+  while (all.length >= MAX_SESSIONS) { const old = all.find(x => x.status === 'ended') || all[0]; all.splice(all.indexOf(old), 1); deleteSession(old.code); }
+  const n = Object.keys(sessions).length + 1;
   session = {
-    v: 1, code: newCode(), status: 'lobby', settings: cleanSettings(settings),
+    v: 2, code: newCode(), name: cleanName(name) || `Сессия ${n}`, status: 'lobby', settings: cleanSettings(settings),
     createdAt: now(), startedAt: null, endedAt: null,
     students: {}, tables: {}, tableSeq: 0, moveSeq: 0,
   };
-  markDirty(); broadcastAllStudents();
+  sessions[session.code] = session;
+  markDirty(); listDirty = true;
   return session;
+}
+function deleteSession(code) {
+  const S = sessions[code]; if (!S) return;
+  for (const t of Object.keys(S.tables)) { clearTimeout(timers.get(code + ':' + t)); timers.delete(code + ':' + t); }
+  for (const sid of Object.keys(S.students)) {
+    for (const res of studentStreams.get(sid) || []) { sse(res, 'state', {kicked: true, deleted: true}); try { res.end(); } catch (e) {} }
+    studentStreams.delete(sid); sidCode.delete(sid);
+  }
+  delete sessions[code]; dashDirty.delete(code);
+  dirty = true; listDirty = true;
 }
 function cleanSettings(s = {}) {
   const o = {...DEFAULT_SETTINGS};
@@ -58,27 +77,29 @@ function cleanSettings(s = {}) {
   pick('diff', ['mix', '1', '2', '3']); pick('timer', [20, 30, 45, 60]); pick('dice', [1, 2]);
   return o;
 }
-function markDirty() { dirty = true; dashDirty = true; }
+function markDirty() { dirty = true; if (session) dashDirty.add(session.code); }
 
 /* --------------------------- PERSISTENCE --------------------------- */
 function saveNow() {
-  if (!session) return;
   try {
     fs.mkdirSync(DATA_DIR, {recursive: true});
-    fs.writeFileSync(DATA_FILE + '.tmp', JSON.stringify(session));
+    fs.writeFileSync(DATA_FILE + '.tmp', JSON.stringify({v: 2, sessions: Object.values(sessions)}));
     fs.renameSync(DATA_FILE + '.tmp', DATA_FILE);
     dirty = false;
   } catch (e) { console.error('Сақтау қатесі:', e.message); }
 }
 function loadSaved() {
-  try {
-    const s = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    if (s && s.v === 1 && s.students && s.tables) {
-      session = s;
-      for (const t of Object.values(session.tables)) if (!t.over && t.phaseDeadline) schedule(t, Math.max(1500, t.phaseDeadline - now()));
-      console.log(`Сақталған сессия жүктелді: код ${s.code}, студент саны ${Object.keys(s.students).length}`);
-    }
-  } catch (e) { /* файл жоқ — жаңа сессия */ }
+  let list = [];
+  try { const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); if (d && Array.isArray(d.sessions)) list = d.sessions; }
+  catch (e) { try { const s = JSON.parse(fs.readFileSync(OLD_DATA_FILE, 'utf8')); if (s && s.students) list = [s]; } catch (e2) {} }
+  for (const s of list) {
+    if (!s || !s.code || !s.students || !s.tables) continue;
+    s.name = s.name || 'Сессия'; sessions[s.code] = s; use(s.code);
+    for (const sid of Object.keys(s.students)) sidCode.set(sid, s.code);
+    for (const t of Object.values(s.tables)) if (!t.over && t.phaseDeadline) schedule(t, Math.max(1500, t.phaseDeadline - now()));
+    console.log(`Сақталған сессия жүктелді: «${s.name}», код ${s.code}, студент саны ${Object.keys(s.students).length}`);
+  }
+  session = null;
 }
 setInterval(() => { if (dirty) saveNow(); }, 3000);
 
@@ -140,11 +161,13 @@ function placeLateStudent(sid) {
 
 /* ---------------------------- TURN FLOW ---------------------------- */
 function schedule(t, ms) {
-  clearTimeout(timers.get(t.id));
-  timers.set(t.id, setTimeout(() => onTimeout(t.id), ms));
+  const code = session.code, k = code + ':' + t.id;
+  clearTimeout(timers.get(k));
+  timers.set(k, setTimeout(() => onTimeout(code, t.id), ms));
 }
-function onTimeout(tid) {
-  if (!session) return;
+function onTimeout(code, tid) {
+  timers.delete(code + ':' + tid);
+  if (!use(code)) return;
   const t = tbl(tid); if (!t || t.over) return;
   if (t.phase === 'roll') doRoll(t, true);
   else if (t.phase === 'question') doAnswer(t, null, true);
@@ -324,7 +347,7 @@ function endTurn(t) {
 }
 function finishTable(t, reason) {
   t.over = true; t.phase = 'over'; t.endReason = reason; t.q = null; t.result = null; t.phaseDeadline = null;
-  clearTimeout(timers.get(t.id)); timers.delete(t.id);
+  clearTimeout(timers.get(session.code + ':' + t.id)); timers.delete(session.code + ':' + t.id);
   addLog(t, `🏁 Ойын аяқталды: ${reason}`);
   if (session.status === 'running' && Object.values(session.tables).every(x => x.over)) {
     session.status = 'ended'; session.endedAt = now();
@@ -335,7 +358,7 @@ function finishTable(t, reason) {
 function endSession() {
   for (const t of Object.values(session.tables)) if (!t.over) {
     t.over = true; t.phase = 'over'; t.endReason = 'Мұғалім ойынды аяқтады.'; t.q = null; t.result = null; t.phaseDeadline = null;
-    clearTimeout(timers.get(t.id)); timers.delete(t.id);
+    clearTimeout(timers.get(session.code + ':' + t.id)); timers.delete(session.code + ':' + t.id);
   }
   session.status = 'ended'; session.endedAt = now();
   markDirty(); broadcastAllStudents();
@@ -381,6 +404,12 @@ function studentView(sid) {
   base.table = view;
   return base;
 }
+function sessionList() {
+  return Object.values(sessions).sort((a, b) => b.createdAt - a.createdAt).map(S => ({
+    code: S.code, name: S.name, status: S.status, createdAt: S.createdAt,
+    students: Object.values(S.students).filter(x => !x.kicked).length,
+    online: Object.keys(S.students).filter(id => isOnline(id)).length}));
+}
 function dashboard() {
   const r = ranking();
   const catStats = {}; Object.keys(G.CATS).forEach(c => catStats[c] = {ok: 0, bad: 0});
@@ -394,7 +423,7 @@ function dashboard() {
     .sort((a, b) => (b[1].bad - a[1].bad) || (a[1].ok - b[1].ok)).slice(0, 8)
     .map(([qid, x]) => ({qid, c: QBYID.get(qid).c, q: QBYID.get(qid).q, ok: x.ok, bad: x.bad}));
   return {
-    code: session.code, status: session.status, settings: session.settings, serverNow: now(),
+    code: session.code, name: session.name, status: session.status, settings: session.settings, serverNow: now(),
     startedAt: session.startedAt, endedAt: session.endedAt,
     totals: {students: r.length, online: r.filter(s => isOnline(s.id)).length, ok: totalOk, bad: totalBad,
       tables: Object.keys(session.tables).length, tablesOver: Object.values(session.tables).filter(t => t.over).length},
@@ -420,22 +449,44 @@ function studentDetail(sid) {
 
 /* ------------------------------ SSE -------------------------------- */
 function sse(res, event, data) { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch (e) {} }
-function sendStudent(sid) { const set = studentStreams.get(sid); if (!set || !set.size) return; const v = studentView(sid); for (const res of set) sse(res, 'state', v); }
+function sendStudent(sid) {
+  const set = studentStreams.get(sid); if (!set || !set.size) return;
+  const keep = session; if (!use(sidCode.get(sid))) { session = keep; return; }
+  const v = studentView(sid); for (const res of set) sse(res, 'state', v);
+  session = keep;
+}
 function broadcastTable(t) { markDirty(); for (const sid of t.players) sendStudent(sid); }
-let allTimer = null;
+let allTimer = null; const allCodes = new Set();
 function broadcastAllStudents() { // жиі шақырылса да, 300 мс ішінде бір рет жібереді
-  markDirty();
+  markDirty(); listDirty = true;
+  if (!session) return;
+  allCodes.add(session.code);
   if (allTimer) return;
-  allTimer = setTimeout(() => { allTimer = null; if (session) for (const sid of studentStreams.keys()) sendStudent(sid); }, 300);
+  allTimer = setTimeout(() => {
+    allTimer = null; const codes = [...allCodes]; allCodes.clear();
+    for (const code of codes) { const S = sessions[code]; if (S) for (const sid of Object.keys(S.students)) sendStudent(sid); }
+  }, 300);
+}
+function sendDash(res, code) {
+  const keep = session;
+  sse(res, 'dash', use(code) ? dashboard() : null);
+  session = keep;
 }
 setInterval(() => {
-  if (!session || !dashDirty || !adminStreams.size) return;
-  dashDirty = false; const d = dashboard();
-  for (const res of adminStreams) sse(res, 'dash', d);
+  if (!adminStreams.size) { dashDirty.clear(); return; }
+  if (listDirty) { listDirty = false; const l = sessionList(); for (const res of adminStreams.keys()) sse(res, 'list', l); }
+  if (!dashDirty.size) return;
+  const codes = new Set(dashDirty); dashDirty.clear();
+  const cache = new Map();
+  for (const [res, code] of adminStreams) if (codes.has(code)) {
+    if (!cache.has(code)) { const keep = session; use(code); cache.set(code, session ? dashboard() : null); session = keep; }
+    sse(res, 'dash', cache.get(code));
+  }
 }, 1000);
+setInterval(() => { listDirty = true; }, 5000); // желідегі сандар жаңарып тұрсын
 setInterval(() => { // байланысты сақтау
   for (const set of studentStreams.values()) for (const res of set) { try { res.write(': ping\n\n'); } catch (e) {} }
-  for (const res of adminStreams) { try { res.write(': ping\n\n'); } catch (e) {} }
+  for (const res of adminStreams.keys()) { try { res.write(': ping\n\n'); } catch (e) {} }
 }, 20000);
 
 /* ------------------------------ HTTP ------------------------------- */
@@ -453,22 +504,28 @@ function isAdmin(req, url) {
   const a = Buffer.from(String(k)), b = Buffer.from(ADMIN_PASSWORD);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-function studentByToken(token) {
-  if (!session || !token) return null;
-  return Object.values(session.students).find(s => s.token === token && !s.kicked) || null;
+function studentByToken(token) { // табылса, сол студенттің сессиясы ағымдағы болады
+  if (!token) return null;
+  for (const S of Object.values(sessions)) {
+    const s = Object.values(S.students).find(x => x.token === token && !x.kicked);
+    if (s) { session = S; return s; }
+  }
+  return null;
 }
 function cleanName(n) { return String(n || '').replace(/[\u0000-\u001f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24); }
 
 async function handleApi(req, res, url) {
   const p = url.pathname;
   // ---------- студент ----------
-  if (p === '/api/info') return send(res, 200, {session: !!session, status: session ? session.status : null});
+  session = null;
+  if (p === '/api/info') return send(res, 200, {session: Object.keys(sessions).length > 0});
   if (p === '/api/join' && req.method === 'POST') {
     const b = await readBody(req);
-    if (!session) return send(res, 400, {error: 'Мұғалім әлі ойын ашқан жоқ.'});
-    if (String(b.code || '').trim() !== session.code) return send(res, 400, {error: 'Ойын коды қате.'});
+    if (!Object.keys(sessions).length) return send(res, 400, {error: 'Мұғалім әлі ойын ашқан жоқ.'});
+    const code = String(b.code || '').trim();
     const existing = studentByToken(b.token);
-    if (existing) return send(res, 200, {token: existing.token, id: existing.id});
+    if (existing && session.code === code) return send(res, 200, {token: existing.token, id: existing.id});
+    if (!use(code)) return send(res, 400, {error: 'Ойын коды қате.'});
     let name = cleanName(b.name);
     if (name.length < 2) return send(res, 400, {error: 'Аты-жөніңізді жазыңыз (кемінде 2 әріп).'});
     const list = Object.values(session.students);
@@ -477,7 +534,7 @@ async function handleApi(req, res, url) {
     const base = name; let k = 2; while (list.some(s => s.name.toLowerCase() === name.toLowerCase())) name = `${base} (${k++})`;
     const s = {id: 's' + newId(5), token: newId(16), name, joinedAt: now(), tableId: null, seat: null,
       coins: G.START_COINS, pos: 0, active: true, skip: 0, ok: 0, bad: 0, answers: [], kicked: false};
-    session.students[s.id] = s;
+    session.students[s.id] = s; sidCode.set(s.id, session.code);
     if (session.status === 'running') placeLateStudent(s.id);
     broadcastAllStudents();
     return send(res, 200, {token: s.token, id: s.id});
@@ -490,10 +547,12 @@ async function handleApi(req, res, url) {
     if (!studentStreams.has(s.id)) studentStreams.set(s.id, new Set());
     studentStreams.get(s.id).add(res);
     sendStudent(s.id);
-    const t = s.tableId && tbl(s.tableId); if (t) broadcastTable(t); else dashDirty = true;
+    const t = s.tableId && tbl(s.tableId); if (t) broadcastTable(t); else markDirty();
+    listDirty = true;
+    const code = session.code;
     req.on('close', () => {
       const set = studentStreams.get(s.id); if (set) { set.delete(res); if (!set.size) studentStreams.delete(s.id); }
-      if (session) { const t2 = s.tableId && tbl(s.tableId); if (t2) broadcastTable(t2); dashDirty = true; }
+      if (use(code)) { const t2 = s.tableId && tbl(s.tableId); if (t2) broadcastTable(t2); markDirty(); listDirty = true; }
     });
     return;
   }
@@ -519,30 +578,41 @@ async function handleApi(req, res, url) {
     if (p === '/api/admin/login' && req.method === 'POST') {
       const b = await readBody(req);
       const ok = (() => { const a = Buffer.from(String(b.password || '')), c = Buffer.from(ADMIN_PASSWORD); return a.length === c.length && crypto.timingSafeEqual(a, c); })();
-      return ok ? send(res, 200, {ok: true, hasSession: !!session}) : send(res, 401, {error: 'Құпия сөз қате.'});
+      return ok ? send(res, 200, {ok: true, hasSession: Object.keys(sessions).length > 0}) : send(res, 401, {error: 'Құпия сөз қате.'});
     }
     if (!isAdmin(req, url)) return send(res, 401, {error: 'Құпия сөз қате.'});
     if (p === '/api/admin/stream') {
       res.writeHead(200, {'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
       res.write('retry: 2000\n\n');
-      adminStreams.add(res);
-      sse(res, 'dash', session ? dashboard() : null);
+      let code = url.searchParams.get('code');
+      if (!sessions[code]) code = (sessionList()[0] || {}).code || null;
+      adminStreams.set(res, code);
+      sse(res, 'list', sessionList());
+      sendDash(res, code);
       req.on('close', () => adminStreams.delete(res));
       return;
     }
     if (p === '/api/admin/new' && req.method === 'POST') {
-      const b = await readBody(req); newSession(b.settings); return send(res, 200, {ok: true, code: session.code});
+      const b = await readBody(req); newSession(b.settings, b.name); return send(res, 200, {ok: true, code: session.code});
     }
-    if (!session) return send(res, 400, {error: 'Алдымен жаңа сессия ашыңыз.'});
+    const b = req.method === 'POST' ? await readBody(req) : {};
+    if (!use(url.searchParams.get('code') || b.code)) return send(res, 400, {error: 'Сессия табылмады. Тізімнен сессияны таңдаңыз немесе жаңасын ашыңыз.'});
+    if (p === '/api/admin/delete' && req.method === 'POST') {
+      deleteSession(session.code); session = null; return send(res, 200, {ok: true});
+    }
+    if (p === '/api/admin/rename' && req.method === 'POST') {
+      const nm = cleanName(b.name); if (nm.length < 1) return send(res, 400, {error: 'Атауын жазыңыз.'});
+      session.name = nm; markDirty(); listDirty = true; return send(res, 200, {ok: true});
+    }
     if (p === '/api/admin/settings' && req.method === 'POST') {
       if (session.status !== 'lobby') return send(res, 400, {error: 'Ойын басталған соң баптауды өзгертуге болмайды.'});
-      const b = await readBody(req); session.settings = cleanSettings(b.settings); markDirty(); broadcastAllStudents();
+      session.settings = cleanSettings(b.settings); markDirty(); broadcastAllStudents();
       return send(res, 200, {ok: true});
     }
     if (p === '/api/admin/start' && req.method === 'POST') {
       if (session.status !== 'lobby') return send(res, 400, {error: 'Ойын басталып қойған.'});
       if (!Object.values(session.students).some(s => !s.kicked)) return send(res, 400, {error: 'Әзірге бірде-бір студент қосылған жоқ.'});
-      const b = await readBody(req); if (b.settings) session.settings = cleanSettings(b.settings);
+      if (b.settings) session.settings = cleanSettings(b.settings);
       session.status = 'running'; session.startedAt = now();
       formTables(); markDirty(); broadcastAllStudents();
       return send(res, 200, {ok: true});
@@ -552,7 +622,7 @@ async function handleApi(req, res, url) {
       endSession(); return send(res, 200, {ok: true});
     }
     if (p === '/api/admin/kick' && req.method === 'POST') {
-      const b = await readBody(req); const s = stu(b.id);
+      const s = stu(b.id);
       if (!s) return send(res, 404, {error: 'Студент табылмады.'});
       s.kicked = true;
       const t = s.tableId && tbl(s.tableId);
@@ -574,7 +644,7 @@ async function handleApi(req, res, url) {
       dashboard().students.forEach(s => rows.push([s.rank, s.name, s.table ?? '', s.coins, s.ok, s.bad,
         s.ok + s.bad ? Math.round(100 * s.ok / (s.ok + s.bad)) : '', s.props, s.propValue]));
       const csv = '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
-      res.writeHead(200, {'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="natizheler.csv"'});
+      res.writeHead(200, {'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="natizheler-${session.code}.csv"`});
       return res.end(csv);
     }
   }

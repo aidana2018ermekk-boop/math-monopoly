@@ -321,6 +321,7 @@ function connect() {
 
 /* ---------- state ---------- */
 function onState(v) {
+  if (v.deleted) { logout('Мұғалім бұл сессияны жапты. Жаңа кодпен қайта кіріңіз.'); return; }
   if (v.kicked) { if (es) es.close(); try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} closeModal(); show('#scKicked'); return; }
   const prev = V; V = v;
   if (!v.table) {
